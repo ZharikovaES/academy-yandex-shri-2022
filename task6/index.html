@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Почта с тегами</title>
+<meta charset='utf-8'>
+<style>
+  .Page {
+    font-family: Arial;
+    font-size: 12px;
+    margin: 0;
+    padding: 0;
+    color: #2f2d33;
+  }
+  .Logo {
+    font-size: 24px;
+    padding: 12px;
+    margin: 0;
+  }
+  .Main {
+    display: flex;
+  }
+  .Tags {
+    width: 25%;
+    background-color: #fffae5;
+    padding: 6px;
+  }
+  .Tags_dropzone {
+    background-color: #ffedba;
+  }
+  .Tags_dragovered {
+    background-color: #ffd98e;
+  }
+  .Tags_dragovered * {
+    pointer-events: none;
+  }
+  .Tag {
+    background-color: #ffc062;
+    color: #592400;
+    margin: 6px;
+    padding: 6px;
+    display: inline-block;
+  }
+  .Tag_dragged {
+    background-color: #ff9100;
+  }
+  .Tag_removed {
+    display: none;
+  }
+  .Letters {
+    width: 100%;
+    background-color: #91cfff;
+  }
+  .Letters_dropzone {
+    background-color: #4da0ff;
+  }
+  .Letter {
+    display: flex;
+    color: #00244d;
+  }
+  .Letter_dragovered {
+    background-color: #006fed;
+  }
+  .Letter_dragovered * {
+    pointer-events: none;
+  }
+  .Letter__Title {
+    margin: 12px;
+  }
+</style>
+</head>
+
+<body class="Page">
+<script>
+    let data = window.data || {
+    tags: {
+      '1': 'важное',
+      '2': 'личное',
+      '3': 'рабочее',
+      '4': 'Проект X',
+      '5': 'Проект Y'
+    },
+    letters: [
+      {
+        id: '1',
+        title: 'Приглашение на день рождения',
+        tags: ['1', '2']
+      },
+      {
+        id: '2',
+        title: 'Ответ на ваш комментарий',
+        tags: ['2']
+      },
+      {
+        id: '3',
+        title: 'Резюме последней встречи про X',
+        tags: ['3', '4']
+      },
+      {
+        id: '4',
+        title: 'Расчётный лист',
+        tags: ['1', '3']
+      },
+      {
+        id: '5',
+        title: 'Нужна помощь с Y',
+        tags: ['3', '5']
+      },
+      {
+        id: '6',
+        title: 'Регулярная рассылка для клиентов',
+        tags: []
+      }
+    ]
+  }
+
+  function mapAndJoin(a, f, s = '') { return a.map(f).join(s) }
+  function buildHtml(data) {
+    return `
+      <div class="Main">
+        <div class="Tags">
+          ${mapAndJoin(
+            Object.entries(data.tags),
+            ([id, title]) => buildTagHtml(id, title))}
+        </div>
+        <div class="Letters">
+          ${mapAndJoin(
+            data.letters,
+            ({ id, title, tags }) => `
+              <div class="Letter" data-letter-id="${id}">
+                <div class="Letter__Title">${title}</div>
+                ${mapAndJoin(tags, (l) => buildTagHtml(l, data.tags[l]))}
+              </div>
+            `)}
+        </div>
+      </div>
+    `
+  }
+  function buildTagHtml(id, title) {
+    return `<div class="Tag" data-tag-id="${id}">${title}</div>`
+  }
+  document.body.innerHTML = buildHtml(data);
+  
+  const tagsBox = document.querySelector(".Tags"); 
+  const tags = tagsBox.children; 
+  const allTags = document.querySelectorAll(".Tag"); 
+  const lettersBox = document.querySelector(".Letters"); 
+  const letters = lettersBox.children;
+
+  const arrTagsId = [];
+  let currentTag = null;
+  let levels = Array(2).fill(0);
+  let oldIndexOfLetter = null;
+  let isMoved = false;
+
+  //добавление слушателей событий к области с существующими тегами 
+  tagsBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+  tagsBox.addEventListener('dragenter', (e) => {
+    tagsBox.classList.add('Tags_dragovered');
+    levels[0]++;
+  });
+  tagsBox.addEventListener('dragleave', (e) => {
+    levels[0]--;
+    if (!levels[0]) tagsBox.classList.remove('Tags_dragovered');
+  });
+  tagsBox.addEventListener('drop', (e) => {
+    levels[0] = 0;
+    tagsBox.classList.remove('Tags_dragovered');
+    if (oldIndexOfLetter !== null) {
+      arrTagsId[oldIndexOfLetter] = arrTagsId[oldIndexOfLetter].filter(el => +el !== +currentTag?.dataset?.tagId);
+      letters[oldIndexOfLetter].querySelector(`[data-tag-id="${currentTag?.dataset?.tagId}"]`).remove();
+      oldIndexOfLetter = null;
+    }
+  });
+
+  //добавление слушателей событий к области с существующими письмами 
+  lettersBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+  lettersBox.addEventListener('dragenter', (e) => {
+    lettersBox.classList.add('Letters_dropzone');
+  });
+  lettersBox.addEventListener('dragleave', (e) => {
+    if (!levels[1]) lettersBox.classList.remove('Letters_dropzone');
+  });
+  lettersBox.addEventListener('drop', (e) => {
+    levels[1] = 0;
+    lettersBox.classList.remove('Letters_dropzone');
+  });
+
+  //добавление слушателей событий к существующим письмам
+  for (let i = 0; i < letters.length; i++) {
+    arrTagsId.push([ ...letters[i].querySelectorAll(".Tag")].map(el => el.dataset.tagId));
+    letters[i].addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    letters[i].addEventListener('dragenter', (e) => {
+      levels[1]++;
+      const indexOfExistingTag = arrTagsId[i].findIndex(el => el === currentTag?.dataset?.tagId);
+      if (indexOfExistingTag === -1)
+        e.target.classList.add('Letter_dragovered');
+    });
+    letters[i].addEventListener('dragleave', (e) => {
+      levels[1]--;
+      if (oldIndexOfLetter === null && currentTag.parentElement.classList.contains("Letter")) oldIndexOfLetter = i;
+      e.target.classList.remove('Letter_dragovered');
+    });
+    letters[i].addEventListener('drop', (e) => {
+      levels[1] = 0;
+      const indexOfExistingTag = arrTagsId[i].findIndex(el => +el === +currentTag?.dataset?.tagId);
+      e.target.classList.remove('Letter_dragovered');
+      if (indexOfExistingTag === -1) {
+        if (oldIndexOfLetter !== null) arrTagsId[oldIndexOfLetter] = arrTagsId[oldIndexOfLetter].filter(el => +el !== +currentTag?.dataset?.tagId);
+        letters[i].append(currentTag);
+        arrTagsId[i] = [ ...letters[i].querySelectorAll(".Tag")].map(el => el.dataset.tagId);
+        isMoved = true;
+      }
+      oldIndexOfLetter = null;
+    });
+  }
+
+  //добавление слушателей событий к тегам
+  for (let i = 0; i < allTags.length; i++){
+    const dragStartTag =(e) => {
+      if (e.target.parentElement.classList.contains("Tags"))
+        e.dataTransfer.effectAllowed = "copy";
+      else {
+        e.dataTransfer.effectAllowed = "move";
+        setTimeout(() => e.target.style.display = "none", 0);
+      }
+      currentTag = e.target;
+      e.target.classList.add('Tag_dragged');
+      tagsBox.classList.add('Tags_dropzone');
+      isMoved = false;
+    }
+    const dragEndTag =(e) => {
+      e.target.className = 'Tag';
+      e.target.style.display = "";
+      if (e.dataTransfer.effectAllowed === "copy" && isMoved) {
+        const cloneNode = e.target.cloneNode(true);
+        cloneNode.addEventListener("dragstart", dragStartTag);
+        cloneNode.addEventListener("dragend", dragEndTag);
+        if (i - 1 >= 0)
+          tags[i - 1].after(cloneNode);
+        else tagsBox.prepend(cloneNode);
+      }
+      tagsBox.classList.remove('Tags_dropzone');
+      currentTag = null;
+      isMoved = false;
+    }
+
+    allTags[i].setAttribute("draggable", true);
+    allTags[i].addEventListener('dragstart', dragStartTag);
+    allTags[i].addEventListener('dragend', dragEndTag);
+
+  }
+
+  window.onSolutionReady && window.onSolutionReady();
+</script>
+</body>
+</html>
